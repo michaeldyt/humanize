@@ -1,3 +1,6 @@
+* 🚀 [Humanize2](https://github.com/humanfia/humanize2) is under active developments and we are looking for your feedbacks! 
+* ✨ Now humanize has a [cool homepage](https://humanfia.ai/)!
+
 # Humanize
 
 **Current Version: 1.16.0**

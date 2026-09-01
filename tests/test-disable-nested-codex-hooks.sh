@@ -83,6 +83,11 @@ HELP
     exit 0
 fi
 
+if [[ "\${1:-}" == "features" && "\${2:-}" == "list" ]]; then
+    echo "codex_hooks                      under development  true"
+    exit 0
+fi
+
 printf '%s\n' "\$*" > "$args_file"
 
 subcommand=""

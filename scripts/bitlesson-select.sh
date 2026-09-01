@@ -191,9 +191,12 @@ run_selector() {
 
     if [[ "$provider" == "codex" ]]; then
         local codex_exec_args=()
-        # Probe whether the installed Codex CLI supports --disable flag
-        if codex --help 2>&1 | grep -q -- '--disable'; then
-            codex_exec_args+=("--disable" "codex_hooks")
+        # Probe both the flag and the native-hooks feature name. The feature
+        # was renamed from `codex_hooks` to `hooks` when it became stable.
+        local hooks_feature=""
+        if codex --help 2>&1 | grep -q -- '--disable' \
+            && hooks_feature="$(codex_hooks_feature_name)"; then
+            codex_exec_args+=("--disable" "$hooks_feature")
         fi
         # Probe for --skip-git-repo-check and --ephemeral support
         if codex exec --help 2>&1 | grep -q -- '--skip-git-repo-check'; then

@@ -86,8 +86,10 @@ TEST_SUITES=(
     "test-config-merge.sh"
     "test-config-error-handling.sh"
     "test-codex-hook-install.sh"
+    "test-one-click-codex-claude-install.sh"
     "test-unified-codex-config.sh"
     "test-disable-nested-codex-hooks.sh"
+    "test-claude-reviewer-routing.sh"
     # Session ID and Agent Teams tests
     "test-session-id.sh"
     "test-agent-teams.sh"

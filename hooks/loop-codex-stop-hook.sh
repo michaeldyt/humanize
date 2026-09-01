@@ -138,6 +138,11 @@ CODEX_EXEC_EFFORT="${STATE_CODEX_EFFORT:-$DEFAULT_CODEX_EFFORT}"
 CODEX_REVIEW_MODEL="$CODEX_EXEC_MODEL"
 CODEX_REVIEW_EFFORT="high"
 CODEX_TIMEOUT="${STATE_CODEX_TIMEOUT:-${CODEX_TIMEOUT:-$DEFAULT_CODEX_TIMEOUT}}"
+REVIEW_PROVIDER="codex"
+CODEX_PRIMARY_MARKER="$PLUGIN_ROOT/.codex-primary-claude-reviewer"
+if [[ -f "$CODEX_PRIMARY_MARKER" ]] || [[ "${HUMANIZE_CODEX_PRIMARY:-}" == "true" ]]; then
+    REVIEW_PROVIDER="claude"
+fi
 ASK_CODEX_QUESTION="${STATE_ASK_CODEX_QUESTION:-false}"
 AGENT_TEAMS="${STATE_AGENT_TEAMS:-false}"
 PRIVACY_MODE="${STATE_PRIVACY_MODE:-true}"
@@ -1092,36 +1097,69 @@ Write your review to {{REVIEW_RESULT_FILE}}. End with COMPLETE if done, or list 
 
 if [[ "$FULL_ALIGNMENT_CHECK" == "true" ]]; then
     # Full Alignment Check prompt
-    load_and_render_safe "$TEMPLATE_DIR" "codex/full-alignment-review.md" "$FULL_ALIGNMENT_FALLBACK" \
-        "CURRENT_ROUND=$CURRENT_ROUND" \
-        "PLAN_FILE=$PLAN_FILE" \
-        "SUMMARY_CONTENT=$SUMMARY_CONTENT" \
-        "GOAL_TRACKER_FILE=$GOAL_TRACKER_FILE" \
-        "DOCS_PATH=$DOCS_PATH" \
-        "GOAL_TRACKER_UPDATE_SECTION=$GOAL_TRACKER_UPDATE_SECTION" \
-        "COMMIT_HISTORY_SECTION=$COMMIT_HISTORY_SECTION" \
-        "COMPLETED_ITERATIONS=$COMPLETED_ITERATIONS" \
-        "LOOP_TIMESTAMP=$LOOP_TIMESTAMP" \
-        "PREV_ROUND=$PREV_ROUND" \
-        "PREV_PREV_ROUND=$PREV_PREV_ROUND" \
-        "REVIEW_RESULT_FILE=$REVIEW_RESULT_FILE" > "$REVIEW_PROMPT_FILE"
+    if [[ "$REVIEW_PROVIDER" == "claude" ]]; then
+        load_and_render_safe "$TEMPLATE_DIR" "claude/full-alignment-review.md" "$FULL_ALIGNMENT_FALLBACK" \
+            "CURRENT_ROUND=$CURRENT_ROUND" \
+            "PLAN_FILE=$PLAN_FILE" \
+            "SUMMARY_CONTENT=$SUMMARY_CONTENT" \
+            "GOAL_TRACKER_FILE=$GOAL_TRACKER_FILE" \
+            "DOCS_PATH=$DOCS_PATH" \
+            "GOAL_TRACKER_UPDATE_SECTION=$GOAL_TRACKER_UPDATE_SECTION" \
+            "COMMIT_HISTORY_SECTION=$COMMIT_HISTORY_SECTION" \
+            "COMPLETED_ITERATIONS=$COMPLETED_ITERATIONS" \
+            "LOOP_TIMESTAMP=$LOOP_TIMESTAMP" \
+            "PREV_ROUND=$PREV_ROUND" \
+            "PREV_PREV_ROUND=$PREV_PREV_ROUND" \
+            "REVIEW_RESULT_FILE=$REVIEW_RESULT_FILE" > "$REVIEW_PROMPT_FILE"
+    else
+        load_and_render_safe "$TEMPLATE_DIR" "codex/full-alignment-review.md" "$FULL_ALIGNMENT_FALLBACK" \
+            "CURRENT_ROUND=$CURRENT_ROUND" \
+            "PLAN_FILE=$PLAN_FILE" \
+            "SUMMARY_CONTENT=$SUMMARY_CONTENT" \
+            "GOAL_TRACKER_FILE=$GOAL_TRACKER_FILE" \
+            "DOCS_PATH=$DOCS_PATH" \
+            "GOAL_TRACKER_UPDATE_SECTION=$GOAL_TRACKER_UPDATE_SECTION" \
+            "COMMIT_HISTORY_SECTION=$COMMIT_HISTORY_SECTION" \
+            "COMPLETED_ITERATIONS=$COMPLETED_ITERATIONS" \
+            "LOOP_TIMESTAMP=$LOOP_TIMESTAMP" \
+            "PREV_ROUND=$PREV_ROUND" \
+            "PREV_PREV_ROUND=$PREV_PREV_ROUND" \
+            "REVIEW_RESULT_FILE=$REVIEW_RESULT_FILE" > "$REVIEW_PROMPT_FILE"
+    fi
 
 else
     # Regular review prompt with goal alignment section
-    load_and_render_safe "$TEMPLATE_DIR" "codex/regular-review.md" "$REGULAR_REVIEW_FALLBACK" \
-        "CURRENT_ROUND=$CURRENT_ROUND" \
-        "PLAN_FILE=$PLAN_FILE" \
-        "PROMPT_FILE=$PROMPT_FILE" \
-        "SUMMARY_CONTENT=$SUMMARY_CONTENT" \
-        "GOAL_TRACKER_FILE=$GOAL_TRACKER_FILE" \
-        "DOCS_PATH=$DOCS_PATH" \
-        "GOAL_TRACKER_UPDATE_SECTION=$GOAL_TRACKER_UPDATE_SECTION" \
-        "COMMIT_HISTORY_SECTION=$COMMIT_HISTORY_SECTION" \
-        "COMPLETED_ITERATIONS=$COMPLETED_ITERATIONS" \
-        "LOOP_TIMESTAMP=$LOOP_TIMESTAMP" \
-        "PREV_ROUND=$PREV_ROUND" \
-        "PREV_PREV_ROUND=$PREV_PREV_ROUND" \
-        "REVIEW_RESULT_FILE=$REVIEW_RESULT_FILE" > "$REVIEW_PROMPT_FILE"
+    if [[ "$REVIEW_PROVIDER" == "claude" ]]; then
+        load_and_render_safe "$TEMPLATE_DIR" "claude/regular-review.md" "$REGULAR_REVIEW_FALLBACK" \
+            "CURRENT_ROUND=$CURRENT_ROUND" \
+            "PLAN_FILE=$PLAN_FILE" \
+            "PROMPT_FILE=$PROMPT_FILE" \
+            "SUMMARY_CONTENT=$SUMMARY_CONTENT" \
+            "GOAL_TRACKER_FILE=$GOAL_TRACKER_FILE" \
+            "DOCS_PATH=$DOCS_PATH" \
+            "GOAL_TRACKER_UPDATE_SECTION=$GOAL_TRACKER_UPDATE_SECTION" \
+            "COMMIT_HISTORY_SECTION=$COMMIT_HISTORY_SECTION" \
+            "COMPLETED_ITERATIONS=$COMPLETED_ITERATIONS" \
+            "LOOP_TIMESTAMP=$LOOP_TIMESTAMP" \
+            "PREV_ROUND=$PREV_ROUND" \
+            "PREV_PREV_ROUND=$PREV_PREV_ROUND" \
+            "REVIEW_RESULT_FILE=$REVIEW_RESULT_FILE" > "$REVIEW_PROMPT_FILE"
+    else
+        load_and_render_safe "$TEMPLATE_DIR" "codex/regular-review.md" "$REGULAR_REVIEW_FALLBACK" \
+            "CURRENT_ROUND=$CURRENT_ROUND" \
+            "PLAN_FILE=$PLAN_FILE" \
+            "PROMPT_FILE=$PROMPT_FILE" \
+            "SUMMARY_CONTENT=$SUMMARY_CONTENT" \
+            "GOAL_TRACKER_FILE=$GOAL_TRACKER_FILE" \
+            "DOCS_PATH=$DOCS_PATH" \
+            "GOAL_TRACKER_UPDATE_SECTION=$GOAL_TRACKER_UPDATE_SECTION" \
+            "COMMIT_HISTORY_SECTION=$COMMIT_HISTORY_SECTION" \
+            "COMPLETED_ITERATIONS=$COMPLETED_ITERATIONS" \
+            "LOOP_TIMESTAMP=$LOOP_TIMESTAMP" \
+            "PREV_ROUND=$PREV_ROUND" \
+            "PREV_PREV_ROUND=$PREV_PREV_ROUND" \
+            "REVIEW_RESULT_FILE=$REVIEW_RESULT_FILE" > "$REVIEW_PROMPT_FILE"
+    fi
 fi
 
 # ========================================
@@ -1130,8 +1168,25 @@ fi
 # Initialize these before the REVIEW_STARTED guard so they are available in both
 # impl phase (codex exec) and review phase (codex review)
 
-# First, check if Codex CLI exists
-if ! command -v codex >/dev/null 2>&1; then
+# First, check if the selected reviewer CLI exists.
+if [[ "$REVIEW_PROVIDER" == "claude" ]] && ! command -v claude >/dev/null 2>&1; then
+    REASON="# Claude CLI Not Found
+
+The 'claude' CLI is not installed or not in PATH.
+This Codex-native RLCR installation requires Claude Code for independent reviews.
+
+Install or configure Claude Code, then retry the exit.
+
+Or use \`/cancel-rlcr-loop\` to end the loop."
+
+    cat <<EOF
+{
+    "decision": "block",
+    "reason": $(echo "$REASON" | jq -Rs .)
+}
+EOF
+    exit 0
+elif [[ "$REVIEW_PROVIDER" == "codex" ]] && ! command -v codex >/dev/null 2>&1; then
     REASON="# Codex CLI Not Found
 
 The 'codex' CLI is not installed or not in PATH.
@@ -1170,14 +1225,18 @@ mkdir -p "$CACHE_DIR"
 # Probe whether the installed Codex CLI supports --disable; cache the result per loop
 # so older builds do not fail with an unknown-argument error.
 CODEX_DISABLE_HOOKS_ARGS=()
-_CODEX_FEATURE_CACHE="$CACHE_DIR/.codex-disable-hooks-supported"
-if [[ -f "$_CODEX_FEATURE_CACHE" ]]; then
-    [[ "$(cat "$_CODEX_FEATURE_CACHE")" == "yes" ]] && CODEX_DISABLE_HOOKS_ARGS=(--disable codex_hooks)
-elif codex --help 2>&1 | grep -q -- '--disable'; then
-    CODEX_DISABLE_HOOKS_ARGS=(--disable codex_hooks)
-    echo "yes" > "$_CODEX_FEATURE_CACHE" 2>/dev/null
-else
-    echo "no" > "$_CODEX_FEATURE_CACHE" 2>/dev/null
+if [[ "$REVIEW_PROVIDER" == "codex" ]]; then
+    _CODEX_FEATURE_CACHE="$CACHE_DIR/.codex-disable-hooks-supported"
+    if [[ -f "$_CODEX_FEATURE_CACHE" ]]; then
+        _CODEX_HOOKS_FEATURE="$(cat "$_CODEX_FEATURE_CACHE")"
+        [[ "$_CODEX_HOOKS_FEATURE" != "none" ]] && CODEX_DISABLE_HOOKS_ARGS=(--disable "$_CODEX_HOOKS_FEATURE")
+    elif codex --help 2>&1 | grep -q -- '--disable' \
+        && _CODEX_HOOKS_FEATURE="$(codex_hooks_feature_name)"; then
+        CODEX_DISABLE_HOOKS_ARGS=(--disable "$_CODEX_HOOKS_FEATURE")
+        echo "$_CODEX_HOOKS_FEATURE" > "$_CODEX_FEATURE_CACHE" 2>/dev/null
+    else
+        echo "none" > "$_CODEX_FEATURE_CACHE" 2>/dev/null
+    fi
 fi
 
 # Build command arguments for summary review (codex exec)
@@ -1197,6 +1256,19 @@ CODEX_REVIEW_ARGS=("-c" "model=${CODEX_REVIEW_MODEL}" "-c" "review_model=${CODEX
 if [[ -n "$CODEX_REVIEW_EFFORT" ]]; then
     CODEX_REVIEW_ARGS+=("-c" "model_reasoning_effort=${CODEX_REVIEW_EFFORT}")
 fi
+
+# Claude review runs without user/project customizations so the nested process
+# cannot trigger Humanize hooks recursively. Plan mode keeps the reviewer
+# read-only while still allowing repository inspection and git diff commands.
+CLAUDE_REVIEW_ARGS=(
+    --safe-mode
+    --permission-mode plan
+    --model "$CLAUDE_REVIEW_MODEL"
+    --effort "$CLAUDE_REVIEW_EFFORT"
+    --no-session-persistence
+    --output-format text
+    -p
+)
 
 # ========================================
 # Helper Functions for Code Review Phase
@@ -1224,11 +1296,12 @@ run_codex_code_review() {
     CODEX_REVIEW_LOG_FILE="$CACHE_DIR/round-${round}-codex-review.log"
     local prompt_file="$LOOP_DIR/round-${round}-review-prompt.md"
 
-    # Create audit prompt file describing the code review invocation
+    # Create the code-review prompt/audit file. Claude receives this prompt
+    # directly; codex review keeps using its built-in diff review command.
     local prompt_fallback="# Code Review Phase - Round ${round}
 
 This file documents the code review invocation for audit purposes.
-Provider: codex
+Provider: ${REVIEW_PROVIDER}
 
 ## Review Configuration
 - Base Branch: ${BASE_BRANCH}
@@ -1237,13 +1310,26 @@ Provider: codex
 - Review Round: ${round}
 - Timestamp: ${timestamp}
 "
-    load_and_render_safe "$TEMPLATE_DIR" "codex/code-review-phase.md" "$prompt_fallback" \
-        "REVIEW_ROUND=$round" \
-        "BASE_BRANCH=$BASE_BRANCH" \
-        "BASE_COMMIT=${BASE_COMMIT:-N/A}" \
-        "REVIEW_BASE=$review_base" \
-        "REVIEW_BASE_TYPE=$review_base_type" \
-        "TIMESTAMP=$timestamp" > "$prompt_file"
+    if [[ "$REVIEW_PROVIDER" == "claude" ]]; then
+        load_and_render_safe "$TEMPLATE_DIR" "claude/code-review.md" "$prompt_fallback" \
+            "REVIEW_ROUND=$round" \
+            "BASE_BRANCH=$BASE_BRANCH" \
+            "BASE_COMMIT=${BASE_COMMIT:-N/A}" \
+            "REVIEW_BASE=$review_base" \
+            "REVIEW_BASE_TYPE=$review_base_type" \
+            "PLAN_FILE=$PLAN_FILE" \
+            "GOAL_TRACKER_FILE=$GOAL_TRACKER_FILE" \
+            "PROJECT_ROOT=$PROJECT_ROOT" \
+            "TIMESTAMP=$timestamp" > "$prompt_file"
+    else
+        load_and_render_safe "$TEMPLATE_DIR" "codex/code-review-phase.md" "$prompt_fallback" \
+            "REVIEW_ROUND=$round" \
+            "BASE_BRANCH=$BASE_BRANCH" \
+            "BASE_COMMIT=${BASE_COMMIT:-N/A}" \
+            "REVIEW_BASE=$review_base" \
+            "REVIEW_BASE_TYPE=$review_base_type" \
+            "TIMESTAMP=$timestamp" > "$prompt_file"
+    fi
 
     echo "Code review prompt (audit) saved to: $prompt_file" >&2
 
@@ -1256,15 +1342,24 @@ Provider: codex
         echo "# Review base ($review_base_type): $review_base"
         echo "# Timeout: $CODEX_TIMEOUT seconds"
         echo ""
-        echo "codex review ${CODEX_DISABLE_HOOKS_ARGS[*]} --base $review_base ${CODEX_REVIEW_ARGS[*]}"
+        if [[ "$REVIEW_PROVIDER" == "claude" ]]; then
+            echo "claude ${CLAUDE_REVIEW_ARGS[*]} < $prompt_file"
+        else
+            echo "codex review ${CODEX_DISABLE_HOOKS_ARGS[*]} --base $review_base ${CODEX_REVIEW_ARGS[*]}"
+        fi
     } > "$CODEX_REVIEW_CMD_FILE"
 
     echo "Code review command saved to: $CODEX_REVIEW_CMD_FILE" >&2
-    echo "Running codex review with timeout ${CODEX_TIMEOUT}s in $PROJECT_ROOT (base: $review_base)..." >&2
+    echo "Running $REVIEW_PROVIDER code review with timeout ${CODEX_TIMEOUT}s in $PROJECT_ROOT (base: $review_base)..." >&2
 
     CODEX_REVIEW_EXIT_CODE=0
-    (cd "$PROJECT_ROOT" && run_with_timeout "$CODEX_TIMEOUT" codex review "${CODEX_DISABLE_HOOKS_ARGS[@]}" --base "$review_base" "${CODEX_REVIEW_ARGS[@]}") \
-        > "$CODEX_REVIEW_LOG_FILE" 2>&1 || CODEX_REVIEW_EXIT_CODE=$?
+    if [[ "$REVIEW_PROVIDER" == "claude" ]]; then
+        (cd "$PROJECT_ROOT" && run_with_timeout "$CODEX_TIMEOUT" claude "${CLAUDE_REVIEW_ARGS[@]}" < "$prompt_file") \
+            > "$CODEX_REVIEW_LOG_FILE" 2>&1 || CODEX_REVIEW_EXIT_CODE=$?
+    else
+        (cd "$PROJECT_ROOT" && run_with_timeout "$CODEX_TIMEOUT" codex review "${CODEX_DISABLE_HOOKS_ARGS[@]}" --base "$review_base" "${CODEX_REVIEW_ARGS[@]}") \
+            > "$CODEX_REVIEW_LOG_FILE" 2>&1 || CODEX_REVIEW_EXIT_CODE=$?
+    fi
 
     echo "Code review exit code: $CODEX_REVIEW_EXIT_CODE" >&2
     echo "Code review log saved to: $CODEX_REVIEW_LOG_FILE" >&2
@@ -1289,12 +1384,12 @@ run_and_handle_code_review() {
     local round="$1"
     local success_msg="$2"
 
-    echo "Running codex review against base branch: $BASE_BRANCH..." >&2
+    echo "Running $REVIEW_PROVIDER review against base branch: $BASE_BRANCH..." >&2
 
     # Run codex review using helper function
     # IMPORTANT: Review failure is a blocking error - do NOT skip to finalize
     if ! run_codex_code_review "$round"; then
-        block_review_failure "$round" "Codex review command failed" "$CODEX_REVIEW_EXIT_CODE"
+        block_review_failure "$round" "$REVIEW_PROVIDER review command failed" "$CODEX_REVIEW_EXIT_CODE"
     fi
 
     # Check both stdout and result file for [P0-9] issues (plan requirement)
@@ -1305,7 +1400,7 @@ run_and_handle_code_review() {
 
     if [[ "$detect_exit" -eq 2 ]]; then
         # Stdout missing/empty is a hard error - block and require retry
-        block_review_failure "$round" "Codex review produced no stdout output" "N/A"
+        block_review_failure "$round" "$REVIEW_PROVIDER review produced no stdout output" "N/A"
     elif [[ "$detect_exit" -eq 0 ]] && [[ -n "$merged_content" ]]; then
         # Issues found - continue review loop
         continue_review_loop_with_issues "$round" "$merged_content"
@@ -1406,6 +1501,19 @@ Focus on the code changes made during this RLCR session. Focus more on changes b
 # Arguments: $1=prompt_file_path
 append_task_tag_routing_note() {
     local prompt_file="$1"
+
+    if [[ "$REVIEW_PROVIDER" == "claude" ]]; then
+        cat >> "$prompt_file" << 'ROUTING_EOF'
+
+## Task Tag Routing Reminder
+
+This installation keeps implementation ownership with the Codex primary agent:
+- `coding` and `analyze` tasks -> Codex executes directly
+- Claude is review-only; do not delegate implementation or analysis to Claude
+- Keep Goal Tracker Active Tasks `Owner` set to `codex`
+ROUTING_EOF
+        return
+    fi
 
     cat >> "$prompt_file" << 'ROUTING_EOF'
 
@@ -1591,7 +1699,7 @@ block_review_failure() {
     local failure_reason="$2"
     local exit_code="${3:-unknown}"
 
-    echo "ERROR: Codex review failed. Blocking exit and requiring retry." >&2
+    echo "ERROR: $REVIEW_PROVIDER review failed. Blocking exit and requiring retry." >&2
 
     local stderr_content=""
     local stderr_file="$CACHE_DIR/round-${round}-codex-review.log"
@@ -1649,7 +1757,7 @@ Stderr (last 50 lines):
 
     jq -n \
         --arg reason "$reason" \
-        --arg msg "Loop: Blocked - Codex review failed, retry required" \
+        --arg msg "Loop: Blocked - independent review failed, retry required" \
         '{
             "decision": "block",
             "reason": $reason,
@@ -1668,7 +1776,7 @@ if [[ "$REVIEW_STARTED" == "true" ]]; then
     # Jump directly to Review Phase section below (after the COMPLETE/STOP handling)
 else
 
-echo "Running summary review for round $CURRENT_ROUND via codex..." >&2
+echo "Running summary review for round $CURRENT_ROUND via $REVIEW_PROVIDER..." >&2
 
 CODEX_CMD_FILE="$CACHE_DIR/round-${CURRENT_ROUND}-codex-run.cmd"
 CODEX_STDOUT_FILE="$CACHE_DIR/round-${CURRENT_ROUND}-codex-run.out"
@@ -1677,27 +1785,36 @@ CODEX_STDERR_FILE="$CACHE_DIR/round-${CURRENT_ROUND}-codex-run.log"
 # Save the command for debugging
 CODEX_PROMPT_CONTENT=$(cat "$REVIEW_PROMPT_FILE")
 {
-    echo "# Codex invocation debug info"
+    echo "# Reviewer invocation debug info"
     echo "# Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "# Working directory: $PROJECT_ROOT"
     echo "# Timeout: $CODEX_TIMEOUT seconds"
     echo ""
-    echo "codex exec ${CODEX_DISABLE_HOOKS_ARGS[*]} ${CODEX_EXEC_ARGS[*]} \"<prompt>\""
+    if [[ "$REVIEW_PROVIDER" == "claude" ]]; then
+        echo "claude ${CLAUDE_REVIEW_ARGS[*]} < <prompt>"
+    else
+        echo "codex exec ${CODEX_DISABLE_HOOKS_ARGS[*]} ${CODEX_EXEC_ARGS[*]} \"<prompt>\""
+    fi
     echo ""
     echo "# Prompt content:"
     echo "$CODEX_PROMPT_CONTENT"
 } > "$CODEX_CMD_FILE"
 
-echo "Codex command saved to: $CODEX_CMD_FILE" >&2
+echo "Reviewer command saved to: $CODEX_CMD_FILE" >&2
 echo "Running summary review with timeout ${CODEX_TIMEOUT}s..." >&2
 
 CODEX_EXIT_CODE=0
-printf '%s' "$CODEX_PROMPT_CONTENT" | run_with_timeout "$CODEX_TIMEOUT" codex exec "${CODEX_DISABLE_HOOKS_ARGS[@]}" "${CODEX_EXEC_ARGS[@]}" - \
-    > "$CODEX_STDOUT_FILE" 2> "$CODEX_STDERR_FILE" || CODEX_EXIT_CODE=$?
+if [[ "$REVIEW_PROVIDER" == "claude" ]]; then
+    printf '%s' "$CODEX_PROMPT_CONTENT" | run_with_timeout "$CODEX_TIMEOUT" claude "${CLAUDE_REVIEW_ARGS[@]}" \
+        > "$CODEX_STDOUT_FILE" 2> "$CODEX_STDERR_FILE" || CODEX_EXIT_CODE=$?
+else
+    printf '%s' "$CODEX_PROMPT_CONTENT" | run_with_timeout "$CODEX_TIMEOUT" codex exec "${CODEX_DISABLE_HOOKS_ARGS[@]}" "${CODEX_EXEC_ARGS[@]}" - \
+        > "$CODEX_STDOUT_FILE" 2> "$CODEX_STDERR_FILE" || CODEX_EXIT_CODE=$?
+fi
 
-echo "Codex exit code: $CODEX_EXIT_CODE" >&2
-echo "Codex stdout saved to: $CODEX_STDOUT_FILE" >&2
-echo "Codex stderr saved to: $CODEX_STDERR_FILE" >&2
+echo "$REVIEW_PROVIDER exit code: $CODEX_EXIT_CODE" >&2
+echo "Reviewer stdout saved to: $CODEX_STDOUT_FILE" >&2
+echo "Reviewer stderr saved to: $CODEX_STDERR_FILE" >&2
 
 # ========================================
 # Check Codex Execution Result
@@ -2031,7 +2148,7 @@ Before executing tasks in this round:
 2. Run \`bitlesson-selector\` for each task/sub-task
 3. Follow selected lesson IDs (or \`NONE\`)
 
-## Codex Review
+## Independent Review
 {{REVIEW_CONTENT}}
 
 Reference: {{PLAN_FILE}}, {{GOAL_TRACKER_FILE}}, {{ROUND_CONTRACT_FILE}}, {{BITLESSON_FILE}}"
@@ -2049,7 +2166,7 @@ Before writing code:
 
 Do not spend this round clearing queued work. Recover mainline progress first.
 
-## Codex Review
+## Independent Review
 {{REVIEW_CONTENT}}"
 
 if [[ "$DRIFT_REPLAN_REQUIRED" == "true" ]]; then
@@ -2125,7 +2242,7 @@ if [[ "$ASK_CODEX_QUESTION" == "true" ]]; then
     done < "$REVIEW_RESULT_FILE"
 
     if [[ "$HAS_OPEN_QUESTION" == "true" ]]; then
-        echo "Detected Open Question(s) in Codex review - injecting AskUserQuestion notice" >&2
+        echo "Detected Open Question(s) in independent review - injecting AskUserQuestion notice" >&2
         OPEN_QUESTION_NOTICE=$(load_template "$TEMPLATE_DIR" "claude/open-question-notice.md" 2>/dev/null)
         if [[ -z "$OPEN_QUESTION_NOTICE" ]]; then
             OPEN_QUESTION_NOTICE="**IMPORTANT**: Codex has found Open Question(s). You must use \`AskUserQuestion\` to clarify those questions with user first, before proceeding to resolve any other Codex's findings."
@@ -2203,7 +2320,7 @@ AGENT_TEAMS_FALLBACK_EOF
 fi
 
 # Build system message
-SYSTEM_MSG="Loop: Round $NEXT_ROUND/$MAX_ITERATIONS - Codex found issues to address"
+SYSTEM_MSG="Loop: Round $NEXT_ROUND/$MAX_ITERATIONS - $REVIEW_PROVIDER found issues to address"
 if [[ "$DRIFT_REPLAN_REQUIRED" == "true" ]]; then
     SYSTEM_MSG="Loop: Round $NEXT_ROUND/$MAX_ITERATIONS - Mainline drift detected, replan required"
 fi

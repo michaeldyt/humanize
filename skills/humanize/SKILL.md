@@ -36,16 +36,17 @@ The RLCR (Ralph-Loop with Codex Review) loop has two phases:
 **Phase 1: Implementation**
 - AI works on the implementation plan
 - AI writes a summary of work completed
-- Codex reviews the summary for completeness and correctness
+- An independent reviewer checks the summary for completeness and correctness
 - If issues found → feedback loop continues
-- If Codex outputs "COMPLETE" → enters Review Phase
+- If the reviewer outputs "COMPLETE" → enters Review Phase
 
 **Phase 2: Code Review**
-- `codex review --base <branch>` checks code quality
+- The independent reviewer checks the branch diff for code-quality issues
 - Issues marked with `[P0-9]` severity markers
 - If issues found → AI fixes them and continues
 - If no issues → loop completes with Finalize Phase
-- On Codex CLI `0.114.0+` with `codex_hooks` enabled, Humanize installs a native `Stop` hook so exit gating runs automatically
+- On hooks-capable Codex CLI releases with `hooks` (or legacy `codex_hooks`) enabled, Humanize installs a native `Stop` hook so exit gating runs automatically
+- Codex installs fix the primary agent to `gpt-5.6-sol:xhigh` and use Claude `claude-opus-5:max` for both review phases
 
 ### 2. Generate Plan - Structured Plan from Draft
 
@@ -72,9 +73,9 @@ After each round, write the required summary and stop/exit normally. Humanize's 
 
 **Common Options:**
 - `--max N` - Maximum iterations before auto-stop (default: 42)
-- `--codex-model MODEL:EFFORT` - Codex model and reasoning effort for `codex exec` (default: gpt-5.5:high)
-- Review phase `codex review` uses `gpt-5.5:high`
-- `--codex-timeout SECONDS` - Timeout for each Codex review (default: 5400)
+- `--codex-model MODEL:EFFORT` - Legacy reviewer option; Codex-native mode remains fixed to `gpt-5.6-sol:xhigh`
+- Codex-native review uses Claude `claude-opus-5:max`
+- `--codex-timeout SECONDS` - Timeout for each independent review (default: 5400)
 - `--base-branch BRANCH` - Base branch for code review (auto-detects if not specified)
 - `--full-review-round N` - Interval for full alignment checks (default: 5)
 - `--skip-impl` - Skip implementation phase, go directly to code review
@@ -174,7 +175,8 @@ The RLCR loop uses a Goal Tracker to prevent goal drift:
 
 ## Prerequisites
 
-- `codex` - OpenAI Codex CLI (for review)
+- `codex` - primary coding agent and native hook host
+- `claude` - independent reviewer for Codex-native installs
 
 
 ## Directory Structure

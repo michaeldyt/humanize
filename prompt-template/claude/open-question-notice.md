@@ -1,1 +1,1 @@
-**IMPORTANT**: Codex has found Open Question(s). You must use `AskUserQuestion` to clarify those questions with user first, before proceeding to resolve any other Codex's findings.
+**IMPORTANT**: The independent reviewer found Open Question(s). You must ask the user to clarify them before proceeding with the review findings.

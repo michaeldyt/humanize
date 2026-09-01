@@ -11,6 +11,9 @@ CODEX_CONFIG_DIR="${CODEX_HOME:-${HOME}/.codex}"
 RUNTIME_ROOT="$CODEX_CONFIG_DIR/skills/humanize"
 DRY_RUN="false"
 ENABLE_FEATURE="true"
+CODEX_HOOKS_FEATURE=""
+CODEX_PRIMARY_MODEL="gpt-5.6-sol"
+CODEX_PRIMARY_EFFORT="xhigh"
 HOOKS_TEMPLATE="$REPO_ROOT/config/codex-hooks.json"
 
 usage() {
@@ -77,8 +80,25 @@ require_codex_hooks_support() {
         die "Codex CLI with native hooks support is required. Install Codex 0.114.0+ first."
     fi
 
-    if ! codex features list 2>/dev/null | grep -qE '^codex_hooks[[:space:]]'; then
-        die "Installed Codex CLI does not expose the codex_hooks feature. Humanize Codex install requires Codex 0.114.0+."
+    local features
+    features="$(codex features list 2>/dev/null)" || \
+        die "Could not inspect Codex CLI feature support."
+
+    # `codex_hooks` was renamed to `hooks` when the feature became stable.
+    # Prefer the legacy name when both are advertised to preserve compatibility
+    # with transitional builds.
+    if grep -qE '^codex_hooks[[:space:]]' <<<"$features"; then
+        CODEX_HOOKS_FEATURE="codex_hooks"
+    elif grep -qE '^hooks[[:space:]]' <<<"$features"; then
+        CODEX_HOOKS_FEATURE="hooks"
+    else
+        die "Installed Codex CLI does not expose native hooks (feature 'hooks' or legacy 'codex_hooks'). Humanize requires a hooks-capable Codex build."
+    fi
+}
+
+require_claude_reviewer() {
+    if ! command -v claude >/dev/null 2>&1; then
+        die "Claude Code CLI is required for the fixed Codex-primary/Claude-reviewer workflow."
     fi
 }
 
@@ -177,11 +197,71 @@ enable_feature() {
 
     [[ "$ENABLE_FEATURE" == "true" ]] || return 0
 
-    if CODEX_HOME="$config_dir" codex features enable codex_hooks >/dev/null 2>&1; then
-        log "enabled codex_hooks feature in $config_dir/config.toml"
+    if CODEX_HOME="$config_dir" codex features enable "$CODEX_HOOKS_FEATURE" >/dev/null 2>&1; then
+        log "enabled $CODEX_HOOKS_FEATURE feature in $config_dir/config.toml"
     else
-        die "failed to enable codex_hooks feature automatically in $config_dir/config.toml"
+        die "failed to enable $CODEX_HOOKS_FEATURE feature automatically in $config_dir/config.toml"
     fi
+}
+
+configure_codex_primary() {
+    local config_dir="$1"
+    local config_file="$config_dir/config.toml"
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        die "python3 is required to configure the Codex primary model"
+    fi
+
+    python3 - "$config_file" "$CODEX_PRIMARY_MODEL" "$CODEX_PRIMARY_EFFORT" <<'PY'
+import pathlib
+import re
+import sys
+
+config_file = pathlib.Path(sys.argv[1])
+model = sys.argv[2]
+effort = sys.argv[3]
+text = config_file.read_text(encoding="utf-8") if config_file.exists() else ""
+lines = text.splitlines()
+
+table_index = next(
+    (index for index, line in enumerate(lines) if re.match(r"^\s*\[", line)),
+    len(lines),
+)
+preamble = lines[:table_index]
+tables = lines[table_index:]
+
+def set_top_level(items, key, value):
+    pattern = re.compile(rf"^\s*{re.escape(key)}\s*=")
+    updated = []
+    found = False
+    for line in items:
+        if pattern.match(line):
+            if not found:
+                updated.append(f'{key} = "{value}"')
+                found = True
+            continue
+        updated.append(line)
+    if not found:
+        updated.append(f'{key} = "{value}"')
+    return updated
+
+preamble = set_top_level(preamble, "model", model)
+preamble = set_top_level(preamble, "model_reasoning_effort", effort)
+if tables and preamble and preamble[-1] != "":
+    preamble.append("")
+
+config_file.parent.mkdir(parents=True, exist_ok=True)
+config_file.write_text("\n".join(preamble + tables).rstrip() + "\n", encoding="utf-8")
+PY
+
+    log "configured Codex primary model $CODEX_PRIMARY_MODEL:$CODEX_PRIMARY_EFFORT in $config_file"
+}
+
+mark_codex_runtime() {
+    local marker_file="$RUNTIME_ROOT/.codex-primary-claude-reviewer"
+    [[ -d "$RUNTIME_ROOT" ]] || die "Humanize runtime root not found: $RUNTIME_ROOT"
+    printf '%s\n' 'codex-primary=gpt-5.6-sol:xhigh' 'reviewer=claude-opus-5:max' > "$marker_file"
+    log "marked runtime for fixed Codex-primary/Claude-reviewer routing"
 }
 
 log "codex config dir: $CODEX_CONFIG_DIR"
@@ -189,17 +269,22 @@ log "runtime root: $RUNTIME_ROOT"
 log "hooks file: $HOOKS_FILE"
 
 require_codex_hooks_support
+require_claude_reviewer
 
 if [[ "$DRY_RUN" == "true" ]]; then
     log "DRY-RUN merge $HOOKS_TEMPLATE -> $HOOKS_FILE"
     if [[ "$ENABLE_FEATURE" == "true" ]]; then
-        log "DRY-RUN enable codex_hooks feature in $CODEX_CONFIG_DIR/config.toml"
+        log "DRY-RUN enable $CODEX_HOOKS_FEATURE feature in $CODEX_CONFIG_DIR/config.toml"
     fi
+    log "DRY-RUN configure Codex primary model $CODEX_PRIMARY_MODEL:$CODEX_PRIMARY_EFFORT in $CODEX_CONFIG_DIR/config.toml"
+    log "DRY-RUN mark $RUNTIME_ROOT for fixed Claude review"
     exit 0
 fi
 
 merge_hooks_json "$HOOKS_FILE" "$HOOKS_TEMPLATE" "$RUNTIME_ROOT"
 enable_feature "$CODEX_CONFIG_DIR"
+configure_codex_primary "$CODEX_CONFIG_DIR"
+mark_codex_runtime
 
 cat <<EOF
 

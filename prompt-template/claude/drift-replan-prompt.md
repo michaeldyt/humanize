@@ -2,7 +2,7 @@ Your work is not finished. Read and execute the below with ultrathink.
 
 ## Drift Recovery Mode
 
-Codex judged the recent implementation rounds as failing to advance the mainline.
+The independent reviewer judged the recent implementation rounds as failing to advance the mainline.
 
 - Consecutive stalled/regressed rounds: {{STALL_COUNT}}
 - Last mainline verdict: {{LAST_MAINLINE_VERDICT}}
@@ -46,10 +46,10 @@ Rules:
 - If a new issue does not block the recovered objective, tag it `[queued]` and keep moving on mainline work
 
 ---
-Below is Codex's review result:
-<!-- CODEX's REVIEW RESULT START -->
+Below is the independent review result:
+<!-- REVIEW RESULT START -->
 {{REVIEW_CONTENT}}
-<!-- CODEX's REVIEW RESULT  END  -->
+<!-- REVIEW RESULT END -->
 ---
 
 ## Goal Tracker Reference

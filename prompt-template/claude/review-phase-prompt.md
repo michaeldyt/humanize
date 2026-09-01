@@ -1,6 +1,6 @@
 # Code Review Findings
 
-You are in the **Review Phase**. Codex has performed a code review and found issues that need to be addressed.
+You are in the **Review Phase**. The independent reviewer found issues that need to be addressed.
 
 ## Required Re-anchor
 
@@ -48,11 +48,11 @@ Your summary should include:
 - How each fixed issue was resolved
 - Any issues that could not be resolved (with explanation)
 - Confirmation that `goal-tracker.md` was updated if the blocking/queued issue lists changed
-- A Goal Tracker Update Request only if tracker reconciliation still needs Codex help
+- A Goal Tracker Update Request only if tracker reconciliation still needs reviewer confirmation
 
 ## Important Notes
 
 - The COMPLETE signal has no effect during the review phase
 - You must address the code review findings to proceed
-- After you commit and write your summary, Codex will perform another code review
+- After you commit and write your summary, the independent reviewer will perform another code review
 - The loop continues until no `[P0-9]` issues are found

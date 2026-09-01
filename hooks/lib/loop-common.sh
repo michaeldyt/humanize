@@ -54,7 +54,7 @@ readonly DRIFT_STATUS_REPLAN_REQUIRED="replan_required"
 # Default Codex configuration (single source of truth - all scripts reference this)
 # Scripts can pre-set DEFAULT_CODEX_MODEL/DEFAULT_CODEX_EFFORT before sourcing to override.
 # Config-backed defaults are loaded from the merge hierarchy after config-loader.sh is sourced.
-# Precedence: pre-set value > config value > hardcoded fallback (gpt-5.5/high)
+# Precedence: pre-set value > config value > hardcoded fallback
 #
 # The actual assignment happens in the "Config-backed defaults" section below,
 # after config-loader.sh has been sourced and merged config is available.
@@ -207,7 +207,7 @@ DEFAULT_BITLESSON_MODEL="${DEFAULT_BITLESSON_MODEL:-haiku}"
 
 # Load codex model/effort from merged config so .humanize/config.json can set persistent
 # defaults for all Codex-using features (RLCR, ask-codex).
-# Precedence: pre-set by caller > config value > hardcoded fallback (gpt-5.5/high)
+# Precedence: pre-set by caller > config value > hardcoded fallback
 _cfg_codex_model="$(get_config_value "$_LOOP_COMMON_CONFIG" "codex_model" 2>/dev/null || true)"
 if [[ -n "$_cfg_codex_model" && ! "$_cfg_codex_model" =~ ^[a-zA-Z0-9._-]+$ ]]; then
     echo "Warning: Invalid codex_model in merged config: $_cfg_codex_model" >&2
@@ -228,6 +228,26 @@ if [[ -n "$_cfg_codex_effort" && ! "$_cfg_codex_effort" =~ ^(xhigh|high|medium|l
     _cfg_codex_effort=""
 fi
 DEFAULT_CODEX_EFFORT="${DEFAULT_CODEX_EFFORT:-${_cfg_codex_effort:-high}}"
+
+readonly CLAUDE_REVIEW_MODEL="claude-opus-5"
+readonly CLAUDE_REVIEW_EFFORT="max"
+
+# Print the native-hooks feature name advertised by the installed Codex CLI.
+# The experimental `codex_hooks` flag was renamed to stable `hooks` in newer
+# releases. Returning no output lets callers remain compatible with builds
+# that do not expose native hooks.
+codex_hooks_feature_name() {
+    local features
+    features="$(codex features list 2>/dev/null)" || return 1
+
+    if grep -qE '^codex_hooks[[:space:]]' <<<"$features"; then
+        printf '%s\n' "codex_hooks"
+    elif grep -qE '^hooks[[:space:]]' <<<"$features"; then
+        printf '%s\n' "hooks"
+    else
+        return 1
+    fi
+}
 
 # Load agent_teams from merged config (controls whether RLCR uses agent teams by default)
 # Precedence: pre-set by caller (e.g. --agent-teams flag) > config value > hardcoded fallback (false)

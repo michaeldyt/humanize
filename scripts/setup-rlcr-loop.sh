@@ -32,6 +32,33 @@ source "$SCRIPT_DIR/portable-timeout.sh"
 HOOKS_LIB_DIR="$(cd "$SCRIPT_DIR/../hooks/lib" && pwd)"
 source "$HOOKS_LIB_DIR/loop-common.sh"
 
+CODEX_NATIVE_CLAUDE_REVIEWER="false"
+if [[ -f "$SCRIPT_DIR/../.codex-primary-claude-reviewer" ]] \
+    || [[ "${HUMANIZE_CODEX_PRIMARY:-}" == "true" ]]; then
+    CODEX_NATIVE_CLAUDE_REVIEWER="true"
+fi
+
+PRIMARY_AGENT_NAME="Claude"
+PRIMARY_AGENT_SLUG="claude"
+TASK_ROUTING_INSTRUCTIONS="$(cat <<'EOF'
+- Tag `coding`: Claude executes the task directly.
+- Tag `analyze`: Claude must execute via `/humanize:ask-codex`, then integrate Codex output.
+- Keep Goal Tracker "Active Tasks" columns **Tag** and **Owner** aligned with execution (`coding -> claude`, `analyze -> codex`).
+- If a task has no explicit tag, default to `coding` (Claude executes directly).
+EOF
+)"
+if [[ "$CODEX_NATIVE_CLAUDE_REVIEWER" == "true" ]]; then
+    PRIMARY_AGENT_NAME="Codex"
+    PRIMARY_AGENT_SLUG="codex"
+    TASK_ROUTING_INSTRUCTIONS="$(cat <<'EOF'
+- Tags `coding` and `analyze` are both executed by the Codex primary agent.
+- Claude is review-only in this installation; do not delegate implementation or analysis tasks to Claude.
+- Keep Goal Tracker "Active Tasks" **Owner** set to `codex`.
+- If a task has no explicit tag, default to `coding` and execute it with Codex.
+EOF
+)"
+fi
+
 # ========================================
 # Parse Arguments
 # ========================================
@@ -42,6 +69,7 @@ TRACK_PLAN_FILE="false"
 MAX_ITERATIONS="$DEFAULT_MAX_ITERATIONS"
 CODEX_MODEL="$DEFAULT_CODEX_MODEL"
 CODEX_EFFORT="$DEFAULT_CODEX_EFFORT"
+CODEX_MODEL_WAS_SET="false"
 CODEX_TIMEOUT="$DEFAULT_CODEX_TIMEOUT"
 PUSH_EVERY_ROUND="false"
 BASE_BRANCH=""
@@ -90,7 +118,7 @@ extract_plan_ac_content() {
 
 show_help() {
     cat <<HELP_EOF
-start-rlcr-loop - Iterative development with Codex review
+start-rlcr-loop - Iterative development with independent review
 
 USAGE:
   /humanize:start-rlcr-loop <path/to/plan.md> [OPTIONS]
@@ -104,9 +132,10 @@ OPTIONS:
   --track-plan-file    Indicate plan file should be tracked in git (must be clean)
   --max <N>            Maximum iterations before auto-stop (default: 42)
   --codex-model <MODEL:EFFORT>
-                       Codex model and reasoning effort for codex exec (default: ${DEFAULT_CODEX_MODEL}:${DEFAULT_CODEX_EFFORT})
+                       Legacy Codex-reviewer model. Codex-native installs fix
+                       the primary at gpt-5.6-sol:xhigh and ignore other values.
   --codex-timeout <SECONDS>
-                       Timeout for each Codex review in seconds (default: 5400)
+                       Timeout for each independent review in seconds (default: 5400)
   --push-every-round   Require git push after each round (default: commits stay local)
   --base-branch <BRANCH>
                        Base branch for code review phase (default: auto-detect)
@@ -140,23 +169,22 @@ OPTIONS:
   -h, --help           Show this help message
 
 DESCRIPTION:
-  Starts an iterative loop with Codex review in your CURRENT session.
+  Starts an iterative loop with independent review in your CURRENT session.
   This command:
 
   1. Takes a markdown plan file as input (not a prompt string)
-  2. Uses Codex to independently review Claude's work each iteration
+  2. Codex-native installs use Claude claude-opus-5:max as reviewer;
+     legacy Claude installs use Codex as reviewer
   3. Has two phases: Implementation Phase and Review Phase
 
   The flow:
-  1. Claude executes plan tasks with tag-based routing (Implementation Phase)
-     - \`coding\` tasks: Claude implements directly
-     - \`analyze\` tasks: Claude delegates execution via \`/humanize:ask-codex\`
-  2. Claude writes a summary to round-N-summary.md
-  3. On exit attempt, Codex reviews the summary
-  4. If Codex finds issues, it blocks exit and sends feedback
-  5. If Codex outputs "COMPLETE", enters Review Phase
-  6. In Review Phase, codex review checks code quality with [P0-9] markers
-  7. If code review finds issues, Claude fixes them
+  1. The primary agent executes plan tasks (Implementation Phase)
+  2. The primary agent writes a summary to round-N-summary.md
+  3. On exit attempt, the independent reviewer checks the summary
+  4. If the reviewer finds issues, it blocks exit and sends feedback
+  5. If the reviewer outputs "COMPLETE", enters Review Phase
+  6. The Review Phase checks code quality with [P0-9] markers
+  7. If code review finds issues, the primary agent fixes them
   8. When no issues found, enters Finalize Phase and loop ends
 
 EXAMPLES:
@@ -215,6 +243,7 @@ while [[ $# -gt 0 ]]; do
                 CODEX_MODEL="$2"
                 CODEX_EFFORT="$DEFAULT_CODEX_EFFORT"
             fi
+            CODEX_MODEL_WAS_SET="true"
             shift 2
             ;;
         --codex-timeout)
@@ -319,6 +348,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ "$CODEX_NATIVE_CLAUDE_REVIEWER" == "true" ]]; then
+    if [[ "$CODEX_MODEL_WAS_SET" == "true" ]] \
+        && [[ "$CODEX_MODEL:$CODEX_EFFORT" != "gpt-5.6-sol:xhigh" ]]; then
+        echo "Warning: --codex-model is ignored by the fixed Codex-native workflow; using gpt-5.6-sol:xhigh" >&2
+    fi
+    CODEX_MODEL="gpt-5.6-sol"
+    CODEX_EFFORT="xhigh"
+fi
+
 # ========================================
 # Validate Prerequisites
 # ========================================
@@ -341,6 +379,10 @@ MISSING_DEPS=()
 
 if ! command -v codex &>/dev/null; then
     MISSING_DEPS+=("codex  - Install: https://github.com/openai/codex")
+fi
+
+if [[ "$CODEX_NATIVE_CLAUDE_REVIEWER" == "true" ]] && ! command -v claude &>/dev/null; then
+    MISSING_DEPS+=("claude - Install and authenticate Claude Code")
 fi
 
 if ! command -v jq &>/dev/null; then
@@ -838,8 +880,8 @@ and goes directly to code review.
 No implementation plan was provided - this is expected for skip-impl mode.
 
 The loop will:
-1. Run `codex review` on the current branch changes
-2. If issues are found, Claude will fix them
+1. Run an independent review on the current branch changes
+2. If issues are found, the primary agent will fix them
 3. When no issues remain, enter finalize phase
 
 SKIP_IMPL_PLAN_EOF
@@ -1080,14 +1122,14 @@ RULES:
 GOAL_TRACKER_EOF
 
 # Extract goal from plan file (look for ## Goal, ## Objective, or first paragraph)
-# This is a heuristic - Claude will refine it in round 0
+# This is a heuristic - the primary agent will refine it in round 0
 # Use ^## without leading whitespace - markdown headers should start at column 0
 GOAL_SECTION=$(extract_plan_goal_content "$FULL_PLAN_PATH")
 if [[ -n "$GOAL_SECTION" ]]; then
     echo "$GOAL_SECTION" >> "$GOAL_TRACKER_FILE"
 else
     # Use first non-empty, non-heading paragraph as goal description
-    echo "[To be extracted from plan by Claude in Round 0]" >> "$GOAL_TRACKER_FILE"
+    echo "[To be extracted from plan by $PRIMARY_AGENT_NAME in Round 0]" >> "$GOAL_TRACKER_FILE"
     echo "" >> "$GOAL_TRACKER_FILE"
     echo "Source plan: $PLAN_FILE" >> "$GOAL_TRACKER_FILE"
 fi
@@ -1096,7 +1138,7 @@ cat >> "$GOAL_TRACKER_FILE" << 'GOAL_TRACKER_EOF'
 
 ### Acceptance Criteria
 <!-- Each criterion must be independently verifiable -->
-<!-- Claude must extract or define these in Round 0 -->
+<!-- The primary agent must extract or define these in Round 0 -->
 
 GOAL_TRACKER_EOF
 
@@ -1107,10 +1149,10 @@ AC_SECTION=$(extract_plan_ac_content "$FULL_PLAN_PATH")
 if [[ -n "$AC_SECTION" ]]; then
     echo "$AC_SECTION" >> "$GOAL_TRACKER_FILE"
 else
-    echo "[To be defined by Claude in Round 0 based on the plan]" >> "$GOAL_TRACKER_FILE"
+    echo "[To be defined by $PRIMARY_AGENT_NAME in Round 0 based on the plan]" >> "$GOAL_TRACKER_FILE"
 fi
 
-cat >> "$GOAL_TRACKER_FILE" << 'GOAL_TRACKER_EOF'
+cat >> "$GOAL_TRACKER_FILE" << GOAL_TRACKER_EOF
 
 ---
 
@@ -1129,7 +1171,7 @@ cat >> "$GOAL_TRACKER_FILE" << 'GOAL_TRACKER_EOF'
 <!-- Mainline tasks only: each task must directly advance the current round objective and carry routing metadata -->
 | Task | Target AC | Status | Tag | Owner | Notes |
 |------|-----------|--------|-----|-------|-------|
-| [To be populated by Claude based on plan] | - | pending | coding or analyze | claude or codex | mainline task only |
+| [To be populated by $PRIMARY_AGENT_NAME based on plan] | - | pending | coding or analyze | $PRIMARY_AGENT_SLUG | mainline task only |
 
 ### Blocking Side Issues
 <!-- Only issues that directly block current mainline progress belong here -->
@@ -1142,7 +1184,7 @@ cat >> "$GOAL_TRACKER_FILE" << 'GOAL_TRACKER_EOF'
 |-------|-----------------|------------------|-----------------|
 
 ### Completed and Verified
-<!-- Only move tasks here after Codex verification -->
+<!-- Only move tasks here after independent reviewer verification -->
 | AC | Task | Completed Round | Verified Round | Evidence |
 |----|------|-----------------|----------------|----------|
 
@@ -1234,7 +1276,7 @@ This RLCR loop was started with \`--skip-impl\` flag.
 
 ## What This Means
 
-The loop will automatically run \`codex review\` on your changes when you try to exit.
+The loop will automatically run an independent review on your changes when you try to exit.
 If issues are found (marked with [P0-9] priority), you'll need to fix them before the loop ends.
 Do not try to execute anything to trigger the review - just stop and it will run automatically.
 
@@ -1246,8 +1288,8 @@ Before requesting review, read:
 ## Your Task
 
 1. Review your current work
-2. When ready, try to exit - Codex will review your code
-3. Fix any issues Codex finds
+2. When ready, try to exit - the independent reviewer will review your code
+3. Fix any issues the reviewer finds
 4. Repeat until no issues remain
 5. Enter finalize phase for code simplification
 
@@ -1336,10 +1378,7 @@ Rules:
 
 Each task must have one routing tag from the plan: \`coding\` or \`analyze\`.
 
-- Tag \`coding\`: Claude executes the task directly.
-- Tag \`analyze\`: Claude must execute via \`/humanize:ask-codex\`, then integrate Codex output.
-- Keep Goal Tracker "Active Tasks" columns **Tag** and **Owner** aligned with execution (\`coding -> claude\`, \`analyze -> codex\`).
-- If a task has no explicit tag, default to \`coding\` (Claude executes directly).
+$TASK_ROUTING_INSTRUCTIONS
 
 EOF
 
@@ -1448,6 +1487,13 @@ fi  # End of skip-impl prompt handling
 # This trap is set here (not at script start) to avoid affecting internal pipelines.
 trap 'exit 0' PIPE
 
+PRIMARY_AGENT_LABEL="Claude (current session)"
+REVIEW_AGENT_LABEL="Codex (${CODEX_MODEL}:${CODEX_EFFORT})"
+if [[ "$CODEX_NATIVE_CLAUDE_REVIEWER" == "true" ]]; then
+    PRIMARY_AGENT_LABEL="Codex (gpt-5.6-sol:xhigh)"
+    REVIEW_AGENT_LABEL="Claude (claude-opus-5:max)"
+fi
+
 if [[ "$SKIP_IMPL" == "true" ]]; then
     cat << EOF
 === start-rlcr-loop activated (SKIP-IMPL MODE) ===
@@ -1455,16 +1501,16 @@ if [[ "$SKIP_IMPL" == "true" ]]; then
 Mode: Code Review Only (--skip-impl)
 Start Branch: $START_BRANCH
 Base Branch: $BASE_BRANCH
-Codex Model: $CODEX_MODEL
-Codex Effort: $CODEX_EFFORT
-Codex Timeout: ${CODEX_TIMEOUT}s
+Primary Agent: $PRIMARY_AGENT_LABEL
+Review Agent: $REVIEW_AGENT_LABEL
+Review Timeout: ${CODEX_TIMEOUT}s
 Loop Directory: $LOOP_DIR
 
 Skip-impl mode is active. The implementation phase is skipped.
-When you try to exit, codex review will run automatically by itself.
+When you try to exit, the independent code review will run automatically.
 
 The loop will:
-1. Run codex review on changes between $BASE_BRANCH and $START_BRANCH
+1. Review changes between $BASE_BRANCH and $START_BRANCH
 2. If issues are found ([P0-9] markers), you'll need to fix them
 3. When no issues remain, enters Finalize Phase and loop ends
 
@@ -1482,18 +1528,18 @@ Plan Tracked: $TRACK_PLAN_FILE
 Start Branch: $START_BRANCH
 Base Branch: $BASE_BRANCH
 Max Iterations: $MAX_ITERATIONS
-Codex Model: $CODEX_MODEL
-Codex Effort: $CODEX_EFFORT
-Codex Timeout: ${CODEX_TIMEOUT}s
+Primary Agent: $PRIMARY_AGENT_LABEL
+Review Agent: $REVIEW_AGENT_LABEL
+Review Timeout: ${CODEX_TIMEOUT}s
 Full Review Round: $FULL_REVIEW_ROUND (Full Alignment Checks at rounds $((FULL_REVIEW_ROUND - 1)), $((2 * FULL_REVIEW_ROUND - 1)), $((3 * FULL_REVIEW_ROUND - 1)), ...)
-Ask User for Codex Questions: $ASK_CODEX_QUESTION
+Ask User for Reviewer Questions: $ASK_CODEX_QUESTION
 Agent Teams: $AGENT_TEAMS
 Loop Directory: $LOOP_DIR
 
 The loop is now active. When you try to exit:
-1. Codex will review your work summary
+1. The independent reviewer will review your work summary
 2. If issues are found, you'll receive feedback and continue
-3. If Codex outputs "COMPLETE", enters Review Phase (code review)
+3. If the reviewer outputs "COMPLETE", enters Review Phase (code review)
 4. Code review checks for [P0-9] issues; if found, you fix them
 5. When no issues found, enters Finalize Phase and loop ends
 

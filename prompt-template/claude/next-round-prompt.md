@@ -45,10 +45,10 @@ Before executing each task in this round:
 3. Follow selected lesson IDs (or `NONE`) during implementation
 
 ---
-Below is Codex's review result:
-<!-- CODEX's REVIEW RESULT START -->
+Below is the independent review result:
+<!-- REVIEW RESULT START -->
 {{REVIEW_CONTENT}}
-<!-- CODEX's REVIEW RESULT  END  -->
+<!-- REVIEW RESULT END -->
 ---
 
 ## Goal Tracker Reference
@@ -68,7 +68,7 @@ If you cannot safely reconcile the tracker yourself, include an optional "Goal T
 
 - Keep the mainline objective from @{{ROUND_CONTRACT_FILE}} stable for this round
 - Do not let queued issues take over the round
-- If Codex reported several findings, classify them into:
+- If the reviewer reported several findings, classify them into:
   - mainline gaps
   - blocking side issues
   - queued side issues

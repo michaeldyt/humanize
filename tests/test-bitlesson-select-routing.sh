@@ -457,6 +457,10 @@ for arg in "$@"; do
         exit 0
     fi
 done
+if [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
+    echo "codex_hooks                      under development  true"
+    exit 0
+fi
 printf '%s\n' "$@" > "${TEST_CAPTURE_ARGS:?}"
 cat > /dev/null
 cat <<'OUT'

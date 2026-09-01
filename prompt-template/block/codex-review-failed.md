@@ -1,18 +1,20 @@
-# Codex Review Failed
+# Independent Review Failed
 
-The Codex review process failed to produce output.
+The independent review process failed to produce valid output.
 
-**Exit Code**: {{CODEX_EXIT_CODE}}
-**Review Result File**: {{REVIEW_RESULT_FILE}} (not created)
+**Reason**: {{FAILURE_REASON}}
+**Round**: {{ROUND_NUMBER}}
+**Base Branch**: {{BASE_BRANCH}}
+**Exit Code**: {{EXIT_CODE}}
+**Review Result File**: {{REVIEW_RESULT_FILE}}
 
 **Debug Files**:
 - Command: {{CODEX_CMD_FILE}}
-- Stdout: {{CODEX_STDOUT_FILE}}
-- Stderr: {{CODEX_STDERR_FILE}}
+- Log: {{CODEX_LOG_FILE}}
 
 **Stderr (last 50 lines)**:
 ```
 {{STDERR_CONTENT}}
 ```
 
-Please check the debug files for more details. The system will attempt another review when you exit.
+Please check the debug files for more details. The system will attempt another independent review when you exit.

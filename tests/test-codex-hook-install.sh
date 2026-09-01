@@ -42,14 +42,14 @@ cat > "$FAKE_BIN/codex" <<'EOF'
 set -euo pipefail
 
 if [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
-    cat <<'LIST'
-codex_hooks                      under development  false
-LIST
+    feature="${TEST_CODEX_HOOKS_FEATURE:-codex_hooks}"
+    printf '%-36s stable             false\n' "$feature"
     exit 0
 fi
 
-if [[ "${1:-}" == "features" && "${2:-}" == "enable" && "${3:-}" == "codex_hooks" ]]; then
+if [[ "${1:-}" == "features" && "${2:-}" == "enable" && "${3:-}" == "${TEST_CODEX_HOOKS_FEATURE:-codex_hooks}" ]]; then
     printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-}" >> "${TEST_CODEX_FEATURE_LOG:?}"
+    printf 'FEATURE=%s\n' "${3:-}" >> "${TEST_CODEX_FEATURE_LOG:?}"
     mkdir -p "${CODEX_HOME:?}"
     : > "${CODEX_HOME}/.codex-hooks-enabled"
     exit 0
@@ -67,6 +67,12 @@ echo "unexpected fake codex invocation: $*" >&2
 exit 1
 EOF
 chmod +x "$FAKE_BIN/codex"
+
+cat > "$FAKE_BIN/claude" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$FAKE_BIN/claude"
 
 cat > "$HOOKS_FILE" <<'EOF'
 {
@@ -107,6 +113,15 @@ cat > "$HOOKS_FILE" <<'EOF'
 }
 EOF
 
+cat > "$CODEX_HOME_DIR/config.toml" <<'EOF'
+# Existing Codex settings must be preserved.
+model = "gpt-5.2"
+model_reasoning_effort = "low"
+
+[features]
+shell_snapshot = true
+EOF
+
 PATH="$FAKE_BIN:$PATH" TEST_CODEX_FEATURE_LOG="$FEATURE_LOG" XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
     "$INSTALL_SCRIPT" \
     --target codex \
@@ -137,6 +152,26 @@ if [[ -f "$CODEX_HOME_DIR/.codex-hooks-enabled" ]]; then
     pass "Codex install enables codex_hooks feature"
 else
     fail "Codex install enables codex_hooks feature" ".codex-hooks-enabled marker exists" "missing"
+fi
+
+if [[ -f "$CODEX_HOME_DIR/skills/humanize/.codex-primary-claude-reviewer" ]] \
+    && grep -q '^codex-primary=gpt-5.6-sol:xhigh$' "$CODEX_HOME_DIR/skills/humanize/.codex-primary-claude-reviewer" \
+    && grep -q '^reviewer=claude-opus-5:max$' "$CODEX_HOME_DIR/skills/humanize/.codex-primary-claude-reviewer"; then
+    pass "Codex install marks the fixed Codex-to-Claude runtime"
+else
+    fail "Codex install marks the fixed Codex-to-Claude runtime" \
+        "fixed reviewer marker" \
+        "$(cat "$CODEX_HOME_DIR/skills/humanize/.codex-primary-claude-reviewer" 2>/dev/null || echo missing)"
+fi
+
+if grep -q '^model = "gpt-5.6-sol"$' "$CODEX_HOME_DIR/config.toml" \
+    && grep -q '^model_reasoning_effort = "xhigh"$' "$CODEX_HOME_DIR/config.toml" \
+    && grep -q '^shell_snapshot = true$' "$CODEX_HOME_DIR/config.toml"; then
+    pass "Codex install configures the fixed primary model and effort"
+else
+    fail "Codex install configures the fixed primary model and effort" \
+        "gpt-5.6-sol:xhigh in config.toml" \
+        "$(cat "$CODEX_HOME_DIR/config.toml" 2>/dev/null || echo missing)"
 fi
 
 if [[ -f "$HUMANIZE_USER_CONFIG" ]]; then
@@ -253,6 +288,7 @@ PATH="$FAKE_BIN:$PATH" TEST_CODEX_FEATURE_LOG="$FEATURE_LOG" XDG_CONFIG_HOME="$X
     --target codex \
     --codex-config-dir "$CODEX_HOME_DIR" \
     --codex-skills-dir "$CODEX_HOME_DIR/skills" \
+    --command-bin-dir "$COMMAND_BIN_DIR" \
     > "$TEST_DIR/install-2.log" 2>&1
 
 PY_OUTPUT_2="$(
@@ -281,10 +317,73 @@ else
     fail "Codex install is idempotent for managed hook commands" "1" "$PY_OUTPUT_2"
 fi
 
-if [[ "$(wc -l < "$FEATURE_LOG" | tr -d ' ')" == "2" ]]; then
+if [[ "$(grep -c '^model = "gpt-5.6-sol"$' "$CODEX_HOME_DIR/config.toml")" == "1" ]] \
+    && [[ "$(grep -c '^model_reasoning_effort = "xhigh"$' "$CODEX_HOME_DIR/config.toml")" == "1" ]]; then
+    pass "Codex primary model configuration is idempotent"
+else
+    fail "Codex primary model configuration is idempotent" \
+        "one model and effort assignment" \
+        "$(cat "$CODEX_HOME_DIR/config.toml")"
+fi
+
+if [[ "$(grep -c '^CODEX_HOME=' "$FEATURE_LOG")" == "2" ]]; then
     pass "Codex feature enable runs on each Codex install/update"
 else
     fail "Codex feature enable runs on each Codex install/update" "2 log entries" "$(cat "$FEATURE_LOG")"
+fi
+
+MODERN_HOME="$TEST_DIR/codex-home-modern"
+MODERN_FEATURE_LOG="$TEST_DIR/codex-features-modern.log"
+PATH="$FAKE_BIN:$PATH" TEST_CODEX_HOOKS_FEATURE="hooks" \
+    TEST_CODEX_FEATURE_LOG="$MODERN_FEATURE_LOG" XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
+    "$INSTALL_SCRIPT" \
+    --target codex \
+    --codex-config-dir "$MODERN_HOME" \
+    --codex-skills-dir "$MODERN_HOME/skills" \
+    --command-bin-dir "$COMMAND_BIN_DIR" \
+    > "$TEST_DIR/install-modern.log" 2>&1
+
+if grep -q '^FEATURE=hooks$' "$MODERN_FEATURE_LOG" && [[ -f "$MODERN_HOME/hooks.json" ]]; then
+    pass "Codex install supports the stable hooks feature name"
+else
+    fail "Codex install supports the stable hooks feature name" \
+        "FEATURE=hooks and hooks.json" \
+        "$(cat "$MODERN_FEATURE_LOG" 2>/dev/null || true)"
+fi
+
+NO_CLAUDE_BIN="$TEST_DIR/bin-no-claude"
+NO_CLAUDE_HOME="$TEST_DIR/codex-home-no-claude"
+mkdir -p "$NO_CLAUDE_BIN" "$NO_CLAUDE_HOME"
+cat > "$NO_CLAUDE_BIN/codex" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
+    echo "hooks                              stable             true"
+    exit 0
+fi
+if [[ "${1:-}" == "features" && "${2:-}" == "enable" ]]; then
+    exit 0
+fi
+exit 1
+EOF
+chmod +x "$NO_CLAUDE_BIN/codex"
+
+set +e
+PATH="$NO_CLAUDE_BIN:/usr/local/bin:/usr/bin:/bin" XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
+    "$INSTALL_SCRIPT" \
+    --target codex \
+    --codex-config-dir "$NO_CLAUDE_HOME" \
+    --codex-skills-dir "$NO_CLAUDE_HOME/skills" \
+    --command-bin-dir "$COMMAND_BIN_DIR" \
+    > "$TEST_DIR/install-no-claude.log" 2>&1
+NO_CLAUDE_EXIT=$?
+set -e
+
+if [[ "$NO_CLAUDE_EXIT" -ne 0 ]] && grep -q 'Claude Code CLI is required' "$TEST_DIR/install-no-claude.log"; then
+    pass "Codex install requires the fixed Claude reviewer dependency"
+else
+    fail "Codex install requires the fixed Claude reviewer dependency" \
+        "non-zero exit with Claude dependency error" \
+        "exit=$NO_CLAUDE_EXIT output=$(cat "$TEST_DIR/install-no-claude.log")"
 fi
 
 UNSUPPORTED_BIN="$TEST_DIR/bin-unsupported"
@@ -308,11 +407,12 @@ EOF
 chmod +x "$UNSUPPORTED_BIN/codex"
 
 set +e
-PATH="$UNSUPPORTED_BIN:$PATH" \
+PATH="$UNSUPPORTED_BIN:$PATH" XDG_CONFIG_HOME="$XDG_CONFIG_HOME_DIR" \
     "$INSTALL_SCRIPT" \
     --target codex \
     --codex-config-dir "$UNSUPPORTED_HOME" \
     --codex-skills-dir "$UNSUPPORTED_HOME/skills" \
+    --command-bin-dir "$COMMAND_BIN_DIR" \
     > "$TEST_DIR/install-unsupported.log" 2>&1
 UNSUPPORTED_EXIT=$?
 set -e
@@ -323,11 +423,11 @@ else
     fail "Codex install rejects builds without native hooks support" "non-zero exit" "exit 0"
 fi
 
-if grep -q "codex_hooks feature" "$TEST_DIR/install-unsupported.log"; then
+if grep -q "native hooks" "$TEST_DIR/install-unsupported.log"; then
     pass "Unsupported Codex failure explains missing codex_hooks feature"
 else
     fail "Unsupported Codex failure explains missing codex_hooks feature" \
-        "error mentioning codex_hooks feature" \
+        "error mentioning native hooks" \
         "$(cat "$TEST_DIR/install-unsupported.log")"
 fi
 

@@ -1,6 +1,6 @@
 # Finalize Phase
 
-Codex review has passed. The implementation is complete and all acceptance criteria have been met.
+The independent review has passed. The implementation is complete and all acceptance criteria have been met.
 
 You are now in the **Finalize Phase**. This is your opportunity to simplify and refactor the code before final completion.
 

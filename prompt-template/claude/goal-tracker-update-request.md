@@ -14,4 +14,4 @@
 [Explain why these changes are needed and how they serve the Ultimate Goal]
 ```
 
-Codex will review your request and reconcile the Goal Tracker if justified.
+The independent reviewer will evaluate the request in the next round.
